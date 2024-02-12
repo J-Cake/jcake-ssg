@@ -36,6 +36,14 @@ pub enum BuildError {
     NoClosingTag,
     NoSelectorList,
     BadSelectorList,
+    NotATag,
+    NotAnExpression,
+    BracketMismatch,
+    NotALiteral,
+    ByteStringNotSupported,
+
+    InvalidCharacterCode(String),
+    UnexpecedEOF,
 }
 
 pub type Result<T> = core::result::Result<T, Error>;

@@ -4,14 +4,13 @@ use crate::config::Args;
 use crate::config::Config;
 use crate::config::LanguageConfig;
 use crate::error::*;
-use crate::template::PageFactory;
+use crate::parse::ParsingContext;
 
 pub static ARGS: OnceLock<Arc<Args>> = OnceLock::new();
 pub static CONFIG: OnceLock<Arc<Config>> = OnceLock::new();
 
 pub async fn build(language: LanguageConfig) -> Result<()> {
     let args = Arc::clone(ARGS.get().expect("No args set"));
-    // let config = Arc::clone(CONFIG.get().expect("No config set"));
 
     let mut set = JoinSet::new();
 
@@ -19,8 +18,20 @@ pub async fn build(language: LanguageConfig) -> Result<()> {
         for file in globwalk::glob(file.to_string_lossy())? {
             match file {
                 Ok(file) if file.metadata()?.is_dir() => return Err(BuildError::MatchedDirectory(file.path().to_path_buf()).into()),
-                Ok(file) => { set.spawn(PageFactory::new(tokio::fs::read_to_string(file.path().to_path_buf()).await?, file.path().to_path_buf())); },
-                Err(err) => return Err(Error::from(err))
+                Err(err) => return Err(Error::from(err)),
+                Ok(file) => {
+                    let file = file.path().to_path_buf();
+
+                    set.spawn(async move {
+                        let source = tokio::fs::read_to_string(file.clone()).await?;
+                        let mut cx = ParsingContext::new(source, file.clone())?;
+                        let page = cx.parse()?;
+
+                        dbg!(page);
+
+                        Result::<()>::Ok(())
+                    });
+                }
             }
         }
     }
