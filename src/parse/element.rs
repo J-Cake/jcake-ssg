@@ -1,7 +1,13 @@
 use std::path::Path;
 use regex::Regex;
-use crate::{BuildError, Error};
-use crate::parse::{Attribute, Element, Origin, ParsingContext};
+use crate::{
+    parse::Origin,
+    parse::Element,
+    parse::Attribute,
+    Error,
+    BuildError,
+    parse::ParsingContext
+};
 
 impl<Source: AsRef<str> + 'static, File: AsRef<Path> + 'static> ParsingContext<Source, File> {
     pub(super) fn parse_tag(&mut self, depth: usize) -> crate::Result<Element> {
@@ -26,7 +32,8 @@ impl<Source: AsRef<str> + 'static, File: AsRef<Path> + 'static> ParsingContext<S
 
                         origin: Origin {
                             source: self.origin.as_ref().to_path_buf(),
-                            offset: self.range.start + attr.start() + name.start() + 1,
+                            offset: self.range().start + attr.start() + name.start() + 1,
+                            token_length: i.get(0).unwrap().len(),
                             depth,
                         },
                     })
@@ -53,7 +60,8 @@ impl<Source: AsRef<str> + 'static, File: AsRef<Path> + 'static> ParsingContext<S
                 },
                 origin: Origin {
                     source: self.origin.as_ref().to_path_buf(),
-                    offset: self.range.start + capture.start(),
+                    offset: self.range().start + capture.start(),
+                    token_length: capture.len(),
                     depth,
                 },
             };
@@ -68,7 +76,8 @@ impl<Source: AsRef<str> + 'static, File: AsRef<Path> + 'static> ParsingContext<S
                     value: id.as_str()[1..].to_owned(),
                     origin: Origin {
                         source: self.origin.as_ref().to_path_buf(),
-                        offset: self.range.start + capture.start() + id.start(),
+                        offset: self.range().start + capture.start() + id.start(),
+                        token_length: id.len(),
                         depth,
                     },
                 });
@@ -76,6 +85,20 @@ impl<Source: AsRef<str> + 'static, File: AsRef<Path> + 'static> ParsingContext<S
 
             Some(())
         })().ok_or(Error::BuildError(BuildError::BadSelectorList))?;
+
+        if open.as_str().ends_with("/>") {
+            return Ok(Element {
+                attributes,
+                name: tag,
+                origin: Origin {
+                    token_length: open.as_str().len(),
+                    source: self.path(),
+                    offset: self.range().start,
+                    depth
+                },
+                body: vec![]
+            });
+        }
 
         let close = (|cx: &ParsingContext<Source, File>| {
             // Find closing tag by counting opening and closing tags with the same name
@@ -96,16 +119,20 @@ impl<Source: AsRef<str> + 'static, File: AsRef<Path> + 'static> ParsingContext<S
             }
 
             return Err(Error::BuildError(BuildError::NoClosingTag));
-        })(&self);
+        })(&self)?;
 
-        let new_range = self.range.start + open.len()..self.range.start + open.end() + close?.start();
-        // dbg!(&cx.source.as_ref()[new_range.clone()]);
+        let new_range = self.range().start + open.len()..self.range().start + open.end() + close.start();
 
         return Ok(Element {
             attributes,
             name: tag,
-            origin: self.origin(depth),
-            body: self.range(new_range).parse_body(depth + 1)?,
+            origin: Origin {
+                token_length: open.as_str().len() + new_range.len() + close.as_str().len(),
+                source: self.path(),
+                offset: self.range().start,
+                depth
+            },
+            body: self.parse_body(new_range, depth + 1)?
         });
     }
 }

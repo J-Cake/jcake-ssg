@@ -3,15 +3,20 @@ mod config;
 mod build;
 mod parse;
 mod compile;
+mod template;
 
 use std::sync::Arc;
 use clap::Parser;
 use tokio::task::JoinSet;
 
-use crate::config::Args;
-use crate::config::Config;
 pub use error::*;
-use crate::build::{ARGS, build, CONFIG};
+use crate::{
+    build::build,
+    build::ARGS,
+    config::Config,
+    config::Args,
+    build::CONFIG
+};
 
 #[tokio::main]
 pub async fn main() -> Result<()> {

@@ -1,6 +1,11 @@
 use std::path::Path;
-use crate::{BuildError, Error};
-use crate::parse::{Expression, ParsingContext};
+use crate::{
+    parse::Origin,
+    parse::Expression,
+    Error,
+    BuildError,
+    parse::ParsingContext
+};
 
 impl<Source: AsRef<str> + 'static, File: AsRef<Path> + 'static> ParsingContext<Source, File> {
     pub(super) fn parse_expr(&mut self, depth: usize) -> crate::Result<Expression> {
@@ -15,10 +20,14 @@ impl<Source: AsRef<str> + 'static, File: AsRef<Path> + 'static> ParsingContext<S
                 }
 
                 if bracket_count == 0 {
-                    let body = self.take(offset + 1);
                     return Ok(Expression {
-                        body: body[1..body.len() - 1].to_owned(),
-                        origin: self.origin(depth),
+                        body: self[1..offset].to_owned(),
+                        origin: Origin {
+                            depth,
+                            offset: self.range().start,
+                            source: self.path(),
+                            token_length: offset + 1,
+                        }
                     });
                 }
             }

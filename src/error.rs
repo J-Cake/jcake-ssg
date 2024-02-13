@@ -43,7 +43,7 @@ pub enum BuildError {
     ByteStringNotSupported,
 
     InvalidCharacterCode(String),
-    UnexpecedEOF,
+    UnexpectedEOF,
 }
 
 pub type Result<T> = core::result::Result<T, Error>;

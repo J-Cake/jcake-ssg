@@ -2,10 +2,15 @@ mod literal;
 mod element;
 mod expression;
 
-use std::fmt::{Debug, Formatter};
-use std::fs::File;
-use std::ops::{Deref, Range};
-use std::path::{Path, PathBuf};
+use std::{
+    collections::VecDeque,
+    fmt::Debug,
+    fmt::Formatter,
+    ops::Deref,
+    ops::Range,
+    path::Path,
+    path::PathBuf
+};
 use regex::Regex;
 use crate::error::*;
 
@@ -21,15 +26,12 @@ pub struct Origin {
     pub source: PathBuf,
     pub offset: usize,
     pub depth: usize,
+    pub token_length: usize
 }
 
 impl Origin {
-    pub fn from_path<Origin: AsRef<Path>>(origin: Origin, offset: usize, depth: usize) -> Self {
-        Self {
-            source: origin.as_ref().to_path_buf(),
-            offset,
-            depth,
-        }
+    pub fn len(&self) -> usize {
+        self.token_length
     }
 }
 
@@ -93,6 +95,16 @@ pub enum Body {
     Literal(Literal),
 }
 
+impl Body {
+    pub fn origin(&self) -> &Origin {
+        match &self {
+            Self::Element(el) => &el.origin,
+            Self::Expression(expr) => &expr.origin,
+            Self::Literal(lit) => &lit.origin,
+        }
+    }
+}
+
 impl Debug for Body {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -128,7 +140,7 @@ pub struct ParsingContext<Source: AsRef<str> + 'static, Origin: AsRef<Path> + 's
 
     source: Source,
     origin: Origin,
-    range: Range<usize>,
+    range_stack: VecDeque<Range<usize>>
 }
 
 impl<Source: AsRef<str> + 'static, File: AsRef<Path> + 'static> ParsingContext<Source, File> {
@@ -145,58 +157,68 @@ impl<Source: AsRef<str> + 'static, File: AsRef<Path> + 'static> ParsingContext<S
             legal_string_modifier: Regex::new(r#"^(?<mod>r?b?|b?r?)(?<hash>#{0,256})(?<quot>["'`])"#)?, // You would have to manually check that the hashtags always follow a modifier
             // escaped_string: ,
 
-            range: 0..source.as_ref().len(),
+            range_stack: vec![0..source.as_ref().len()].into_iter().collect(),
             source,
             origin,
         })
     }
-    pub fn range(&mut self, range: Range<usize>) -> &mut Self {
-        self.range = range;
-        return self;
+
+    pub fn path(&self) -> PathBuf {
+        self.origin.as_ref().to_path_buf()
     }
 
-    pub fn origin(&self, depth: usize) -> Origin {
-        Origin::from_path(self.origin.as_ref().to_path_buf(), self.range.start, depth)
+    pub fn range(&self) -> &Range<usize> {
+        self.range_stack.get(self.range_stack.len() - 1).unwrap()
+    }
+
+    pub fn range_mut(&mut self) -> &mut Range<usize> {
+        self.range_stack.get_mut(self.range_stack.len() - 1).unwrap()
     }
 
     pub fn skip_whitespace(&mut self) -> &mut Self {
         while let Some(ignored) = self.garbage.find(&self) {
             if ignored.len() <= 0 { return self; }
 
-            self.range.start += ignored.len();
+            self.range_mut().start += ignored.len();
         }
 
         return self;
     }
 
-    pub fn take(&mut self, chars: usize) -> String {
-        if self.len() < chars {
-            return String::new();
-        }
-
-        let str = self[..chars].to_owned();
-        self.range.start += chars;
-        return str;
-    }
-
     pub fn parse(&mut self) -> Result<Element> {
         Ok(Element {
-            origin: self.origin(0),
+            origin: Origin {
+                depth: 0,
+                offset: 0,
+                source: self.path(),
+                token_length: self.len(),
+            },
             attributes: vec![Attribute {
                 name: "origin".to_string(),
-                value: self.origin.as_ref().to_path_buf().to_str().unwrap().to_string(),
-                origin: self.origin(0)
+                value: self.path().to_str().unwrap().to_string(),
+                origin: Origin {
+                    depth: 0,
+                    offset: 0,
+                    source: self.path(),
+                    token_length: self.len(),
+                }
             }],
             name: "template".to_owned(),
-            body: self.parse_body(1)?,
+            body: self.parse_body(self.range().clone(), 1)?,
         })
     }
 
-    fn parse_body(&mut self, depth: usize) -> Result<Vec<Body>> {
+    fn parse_body(&mut self, range: Range<usize>, depth: usize) -> Result<Vec<Body>> {
         let mut body = Vec::new();
+
+        self.range_stack.push_back(range);
+
         while let Some(child) = self.try_parse_any(depth)? {
+            self.range_mut().start += child.origin().len();
             body.push(child);
         }
+
+        self.range_stack.pop_back().unwrap();
 
         Ok(body)
     }
@@ -229,6 +251,6 @@ impl<Source: AsRef<str> + 'static, File: AsRef<Path> + 'static> ParsingContext<S
 impl<Source: AsRef<str> + 'static, Origin: AsRef<Path> + 'static> Deref for ParsingContext<Source, Origin> {
     type Target = str;
     fn deref(&self) -> &Self::Target {
-        &self.source.as_ref()[self.range.clone()]
+        &self.source.as_ref()[self.range().clone()]
     }
 }

@@ -1,7 +1,11 @@
-use std::ops::Deref;
 use std::path::Path;
-use crate::{BuildError, Error};
-use crate::parse::{Literal, Origin, ParsingContext};
+use crate::{
+    parse::Origin,
+    parse::Literal,
+    Error,
+    BuildError,
+    parse::ParsingContext
+};
 
 impl<Source: AsRef<str> + 'static, File: AsRef<Path> + 'static> ParsingContext<Source, File> {
     pub(super) fn parse_literal(&mut self, depth: usize) -> crate::Result<Literal> {
@@ -10,7 +14,7 @@ impl<Source: AsRef<str> + 'static, File: AsRef<Path> + 'static> ParsingContext<S
             .map(|i| self.split_at(i + 1))
             .ok_or(Error::BuildError(BuildError::NotALiteral))?;
 
-        let offset = self.range.start + modifier.len();
+        let modifier_length = modifier.len();
         let modifier = self.legal_string_modifier.captures(modifier)
             .ok_or(Error::BuildError(BuildError::NotALiteral))?;
 
@@ -25,8 +29,9 @@ impl<Source: AsRef<str> + 'static, File: AsRef<Path> + 'static> ParsingContext<S
                     is_byte_string: r#mod.contains('b'),
                     origin: Origin {
                         source: self.origin.as_ref().to_path_buf(),
-                        offset,
+                        offset: self.range().start + modifier_length,
                         depth,
+                        token_length: modifier_length + end // TODO: Test
                     },
                 }
             } else {
@@ -74,7 +79,7 @@ impl<Source: AsRef<str> + 'static, File: AsRef<Path> + 'static> ParsingContext<S
                             body.extend(char.to_string().bytes());
                         }
                         Some(char) => body.extend(char.to_string().bytes()),
-                        _ => return Err(Error::BuildError(BuildError::UnexpecedEOF))
+                        _ => return Err(Error::BuildError(BuildError::UnexpectedEOF))
                     }
                 } else if next.to_string().eq(quot) { break; } else {
                     body.extend(next.to_string().bytes())
@@ -82,17 +87,17 @@ impl<Source: AsRef<str> + 'static, File: AsRef<Path> + 'static> ParsingContext<S
             }
 
             Literal {
-                body,
                 is_byte_string: is_byte,
                 origin: Origin {
                     source: self.origin.as_ref().to_path_buf(),
-                    offset,
+                    offset: self.range().start + modifier_length,
                     depth,
+                    token_length: modifier_length + body.len() + 1
                 },
+                body,
             }
         };
 
-        self.range.start = offset + literal.body.len() + 1;
         return Ok(literal);
     }
 

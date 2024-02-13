@@ -1,10 +1,15 @@
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
+use std::sync::OnceLock;
+use log::info;
 use tokio::task::JoinSet;
-use crate::config::Args;
-use crate::config::Config;
-use crate::config::LanguageConfig;
-use crate::error::*;
-use crate::parse::ParsingContext;
+use crate::{
+    config::Args,
+    config::Config,
+    config::LanguageConfig,
+    error::*,
+    parse::ParsingContext,
+    template
+};
 
 pub static ARGS: OnceLock<Arc<Args>> = OnceLock::new();
 pub static CONFIG: OnceLock<Arc<Config>> = OnceLock::new();
@@ -22,10 +27,13 @@ pub async fn build(language: LanguageConfig) -> Result<()> {
                 Ok(file) => {
                     let file = file.path().to_path_buf();
 
+                    info!("Building page {:?}", file);
+
                     set.spawn(async move {
                         let source = tokio::fs::read_to_string(file.clone()).await?;
                         let mut cx = ParsingContext::new(source, file.clone())?;
-                        let page = cx.parse()?;
+
+                        let page = template::expand_template(cx.parse()?).await?;
 
                         dbg!(page);
 
@@ -37,7 +45,7 @@ pub async fn build(language: LanguageConfig) -> Result<()> {
     }
 
     while let Some(task) = set.join_next().await {
-        dbg!(task??);
+        task??;
     }
 
     Ok(())
