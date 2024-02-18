@@ -15,11 +15,13 @@ serde = { version = "1.0.196", features = ["derive"] }
 toml = { version = "0.8.10", features = [] }
 clap = { version = "4.5.0", features = ["color", "derive"] }
 tokio = { version = "1.36.0", features = ["full"] }
+rune = { version = "0.13.1", features = [] }
 # small & utility dependencies
 regex = "1.10.3"
 globwalk = "0.9.1"
 log = "0.4.20"
 env_logger = "0.11.1"
+async-recursion = "1.0.5"
 
 # Optional Dependencies
 

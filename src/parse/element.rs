@@ -89,7 +89,7 @@ impl<Source: AsRef<str> + 'static, File: AsRef<Path> + 'static> ParsingContext<S
         if open.as_str().ends_with("/>") {
             return Ok(Element {
                 attributes,
-                name: tag,
+                name: tag.to_lowercase(),
                 origin: Origin {
                     token_length: open.as_str().len(),
                     source: self.path(),
@@ -125,7 +125,7 @@ impl<Source: AsRef<str> + 'static, File: AsRef<Path> + 'static> ParsingContext<S
 
         return Ok(Element {
             attributes,
-            name: tag,
+            name: tag.to_lowercase(),
             origin: Origin {
                 token_length: open.as_str().len() + new_range.len() + close.as_str().len(),
                 source: self.path(),

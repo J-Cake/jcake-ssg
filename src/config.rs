@@ -1,5 +1,8 @@
 use std::path::PathBuf;
 use clap::Parser;
+use rune::runtime::VmResult;
+use rune::{Any, ToValue, Value};
+use rune::ast::Kind::Struct;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -8,6 +11,11 @@ fn default_language() -> String { "en".into() }
 
 #[inline]
 fn default_build() -> PathBuf { "build".into() }
+
+#[inline]
+fn default_content_type() -> Vec<ContentType> {
+    vec![]
+}
 
 #[derive(Debug, Clone, Parser)]
 pub struct Args {
@@ -31,10 +39,13 @@ pub struct Config {
     pub languages: Vec<LanguageConfig>,
 
     #[serde(default = "default_build")]
-    pub build: PathBuf
+    pub build: PathBuf,
+
+    #[serde(rename = "content_type", default = "default_content_type")]
+    pub content_types: Vec<ContentType>
 }
 
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, Any)]
 pub struct LanguageConfig {
     pub name: String,
     pub native: String,
@@ -42,4 +53,10 @@ pub struct LanguageConfig {
     pub menu: Vec<(String, String)>,
 
     pub pages: Vec<PathBuf>
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContentType {
+    pub extensions: Vec<String>,
+    pub handler: String // A Rune script
 }

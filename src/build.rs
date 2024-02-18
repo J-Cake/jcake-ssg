@@ -10,6 +10,7 @@ use crate::{
     parse::ParsingContext,
     template
 };
+use crate::template::TemplateContext;
 
 pub static ARGS: OnceLock<Arc<Args>> = OnceLock::new();
 pub static CONFIG: OnceLock<Arc<Config>> = OnceLock::new();
@@ -29,13 +30,19 @@ pub async fn build(language: LanguageConfig) -> Result<()> {
 
                     info!("Building page {:?}", file);
 
+                    let lang = language.clone();
                     set.spawn(async move {
                         let source = tokio::fs::read_to_string(file.clone()).await?;
-                        let mut cx = ParsingContext::new(source, file.clone())?;
+                        let cx = ParsingContext::new(source, file.clone())?;
 
-                        let page = template::expand_template(cx.parse()?).await?;
-
-                        dbg!(page);
+                        let template = TemplateContext {
+                            page: file.clone(),
+                            parse: cx,
+                            variables: vec![
+                                ("page".to_owned(), rune::to_value(file.clone().to_str().unwrap_or(""))?),
+                                ("language".to_owned(), rune::to_value(lang.clone())?)
+                            ].into_iter().collect(),
+                        };
 
                         Result::<()>::Ok(())
                     });

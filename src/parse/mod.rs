@@ -203,7 +203,7 @@ impl<Source: AsRef<str> + 'static, File: AsRef<Path> + 'static> ParsingContext<S
                     token_length: self.len(),
                 }
             }],
-            name: "template".to_owned(),
+            name: "fragment".to_owned(),
             body: self.parse_body(self.range().clone(), 1)?,
         })
     }

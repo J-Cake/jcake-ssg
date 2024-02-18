@@ -24,7 +24,8 @@ multi_error! { Error();
     WalkError = globwalk::WalkError;
     JoinError = tokio::task::JoinError;
     RegexError = regex::Error;
-    BuildError = BuildError
+    BuildError = BuildError;
+    RuneError = rune::runtime::VmError
 }
 
 #[derive(Debug)]
