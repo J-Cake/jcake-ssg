@@ -14,6 +14,7 @@ use std::{
 use regex::Regex;
 use crate::error::*;
 
+#[derive(Clone)]
 pub struct Element {
     pub name: String,
     pub attributes: Vec<Attribute>,
@@ -61,6 +62,7 @@ impl Debug for Element {
     }
 }
 
+#[derive(Clone)]
 pub struct Expression {
     pub body: String,
     pub origin: Origin,
@@ -72,6 +74,7 @@ impl Debug for Expression {
     }
 }
 
+#[derive(Clone)]
 pub struct Literal {
     pub body: Vec<u8>,
     // To allow for byte strings

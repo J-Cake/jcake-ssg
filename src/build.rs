@@ -1,68 +1,83 @@
 use std::sync::Arc;
 use std::sync::OnceLock;
-use log::{debug, info};
-use tokio::task::JoinSet;
+use std::path::PathBuf;
+use log::{debug, warn};
 use crate::{
-    config::Args,
+    parse::ParsingContext,
+    error::*,
     config::Config,
+    config::Args,
+    config::ContentType,
     config::LanguageConfig,
     error::*,
-    parse::ParsingContext,
-    template
+    template::elements::Element
 };
-use crate::config::Page;
+
+#[derive(Debug)]
+pub struct PageResolver {
+    pub path: PathBuf,
+    pub language: Arc<LanguageConfig>,
+    pub content_type: Arc<ContentType>
+}
+
 
 pub static ARGS: OnceLock<Arc<Args>> = OnceLock::new();
 pub static CONFIG: OnceLock<Arc<Config>> = OnceLock::new();
 
-pub async fn build(page: Page) -> Result<()> {
-    let args = Arc::clone(ARGS.get().expect("No args set"));
-    let config = Arc::clone(CONFIG.get().expect("No config set"));
+pub async fn list_pages() -> Result<impl Iterator<Item=PageResolver>> {
+    let args = ARGS.get().expect("Args not set").clone();
+    let config = CONFIG.get().expect("Config not set").clone();
 
-    debug!("Building {:#?}", &page);
+    let mut pages = Vec::new();
+
+    for lang in args.languages.iter() {
+        if let Some(language) = config.languages.iter().find(|i| i.name.eq(lang)) {
+            for page in config.pages.iter() {
+                for content_type in config.content_types.iter() {
+                    for ext in content_type.extensions.iter() {
+                        let mut potential = Vec::with_capacity(10);
+
+                        for i in config.roots.iter()
+                            .map(|root| Result::<PathBuf>::Ok(args.root
+                                .canonicalize()?
+                                .join(root)
+                                .join(&page.name)
+                                .with_extension(format!("{}.{}", &language.name, ext)))) {
+
+                            let page = i?;
+                            if tokio::fs::try_exists(&page).await? {
+                                potential.push(page)
+                            }
+                        }
+
+                        if potential.len() > 1 {
+                            warn!("Ambiguous page name: {:?}", &potential);
+                        } else if let Some(first) = potential.first() {
+                            pages.push(PageResolver {
+                                content_type: content_type.clone(),
+                                language: language.clone(),
+                                path: first.clone()
+                            });
+                        }
+                    }
+                }
+            }
+        } else {
+            warn!("No language '{}' defined", lang);
+        }
+    }
+
+    Ok(pages.into_iter())
+}
+
+pub async fn build(page: PageResolver) -> Result<()> {
+    let source = tokio::fs::read_to_string(&page.path).await?;
+
+    let mut cx = ParsingContext::new(source, page.path.clone())?;
+    let page = cx.parse()?;
+    let el = Element::from_element(&page)?;
+
+    debug!("Transform: {:?}", el.render(0));
 
     Ok(())
 }
-
-// pub async fn build(language: LanguageConfig) -> Result<()> {
-//     let args = Arc::clone(ARGS.get().expect("No args set"));
-//
-//     let mut set = JoinSet::new();
-//
-//     for file in language.pages.iter().map(|i| if i.is_absolute() { i.clone() } else { args.root.join(i) }) {
-//         for file in globwalk::glob(file.to_string_lossy())? {
-//             match file {
-//                 Ok(file) if file.metadata()?.is_dir() => return Err(BuildError::MatchedDirectory(file.path().to_path_buf()).into()),
-//                 Err(err) => return Err(Error::from(err)),
-//                 Ok(file) => {
-//                     let file = file.path().to_path_buf();
-//
-//                     info!("Building page {:?}", file);
-//
-//                     let lang = language.clone();
-//                     set.spawn(async move {
-//                         let source = tokio::fs::read_to_string(file.clone()).await?;
-//                         let cx = ParsingContext::new(source, file.clone())?;
-//
-//                         // let template = TemplateContext {
-//                         //     page: file.clone(),
-//                         //     parse: cx,
-//                         //     variables: vec![
-//                         //         ("page".to_owned(), rune::to_value(file.clone().to_str().unwrap_or(""))?),
-//                         //         ("language".to_owned(), rune::to_value(lang.clone())?)
-//                         //     ].into_iter().collect(),
-//                         // };
-//
-//                         Result::<()>::Ok(())
-//                     });
-//                 }
-//             }
-//         }
-//     }
-//
-//     while let Some(task) = set.join_next().await {
-//         task??;
-//     }
-//
-//     Ok(())
-// }

@@ -2,15 +2,16 @@ use std::collections::HashMap;
 use crate::error::*;
 use crate::parse;
 use crate::parse::Attribute;
-use crate::template::elements::{Body, Element};
+use crate::template::elements::Body;
+use crate::template::elements::Element;
 
-pub struct EscapeElement {
+pub struct ConditionElement {
     source: parse::Element,
     body: Vec<Body>,
     attr: HashMap<String, Attribute>
 }
 
-impl Element for EscapeElement {
+impl Element for ConditionElement {
     fn name(&self) -> String {
         self.source.name.clone()
     }
