@@ -4,10 +4,12 @@ mod build;
 mod parse;
 mod compile;
 mod template;
+mod pages;
 
 use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};
 use clap::Parser;
+use log::{debug, warn};
 use tokio::task::JoinSet;
 
 pub use error::*;
@@ -18,6 +20,8 @@ use crate::{
     config::Args,
     build::CONFIG
 };
+use crate::config::Page;
+use crate::pages::list_pages;
 
 pub static SITE_ROOT: OnceLock<Arc<PathBuf>> = OnceLock::new();
 
@@ -35,16 +39,10 @@ pub async fn main() -> Result<()> {
     ARGS.set(Arc::clone(&args)).expect("Failed to set args");
     CONFIG.set(Arc::clone(&config)).expect("Failed to set config");
 
-    let mut set = JoinSet::new();
+    let mut set = JoinSet::<Result<()>>::new();
 
-    for lang in args.languages.iter() {
-        let config = config.languages
-            .iter()
-            .find(|i| i.name.eq(lang))
-            .expect(format!("Language '{}' not defined", lang).as_str())
-            .clone();
-
-        set.spawn(build(config));
+    for page in list_pages().await? {
+        debug!("{:#?}", &page);
     }
 
     while let Some(result) = set.join_next().await {

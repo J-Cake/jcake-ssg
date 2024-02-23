@@ -1,8 +1,7 @@
 use std::path::PathBuf;
+use std::sync::Arc;
 use clap::Parser;
-use rune::runtime::VmResult;
-use rune::{Any, ToValue, Value};
-use rune::ast::Kind::Struct;
+use rune::{Any};
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -13,7 +12,7 @@ fn default_language() -> String { "en".into() }
 fn default_build() -> PathBuf { "build".into() }
 
 #[inline]
-fn default_content_type() -> Vec<ContentType> {
+fn default_content_type() -> Vec<Arc<ContentType>> {
     vec![]
 }
 
@@ -25,7 +24,7 @@ pub struct Args {
     #[clap(long, short, default_value = "./")]
     pub root: PathBuf,
 
-    #[clap(long, short)]
+    #[clap(long = "language", short, num_args(0..))]
     pub languages: Vec<String>
 }
 
@@ -36,27 +35,51 @@ pub struct Config {
     pub default_language: String,
 
     #[serde(rename = "language")]
-    pub languages: Vec<LanguageConfig>,
+    pub languages: Vec<Arc<LanguageConfig>>,
+
+    #[serde(rename = "page")]
+    pub pages: Vec<Page>,
+
+    pub roots: Vec<PathBuf>,
 
     #[serde(default = "default_build")]
     pub build: PathBuf,
 
-    #[serde(rename = "content_type", default = "default_content_type")]
-    pub content_types: Vec<ContentType>
+    #[serde(rename = "content-type", default = "default_content_type")]
+    pub content_types: Vec<Arc<ContentType>>
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, Any)]
 pub struct LanguageConfig {
+    #[serde(rename = "abbreviation")]
     pub name: String,
+
+    #[serde(rename = "full-name")]
     pub native: String,
 
-    pub menu: Vec<(String, String)>,
+    pub menu: Vec<Menu>,
+}
 
-    pub pages: Vec<PathBuf>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum Menu {
+    Submenu {
+        label: String,
+        items: Vec<Menu>
+    },
+    Item {
+        label: String,
+        page: String
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContentType {
     pub extensions: Vec<String>,
     pub handler: String // A Rune script
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Page {
+    pub name: String,
+    pub title: Option<String>,
 }
