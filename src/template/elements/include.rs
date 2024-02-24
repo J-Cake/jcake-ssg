@@ -5,30 +5,14 @@ use crate::parse::Attribute;
 use crate::template::elements::{Body, Element};
 
 pub struct IncludeElement {
-    source: parse::Element,
-    body: Vec<Body>,
-    attr: HashMap<String, Attribute>
+    pub(super) source: parse::Element,
+    pub(super) body: Vec<Body>,
+    pub(super) attr: HashMap<String, Attribute>
 }
 
 impl Element for IncludeElement {
     fn name(&self) -> String {
         self.source.name.clone()
-    }
-
-    fn from_element(element: &crate::parse::Element) -> Result<Self> {
-        Ok(Self {
-            attr: element
-                .attributes
-                .iter()
-                .map(|attr| (attr.name.clone(), attr))
-                .collect(),
-            body: element.body.iter().map(|i| match i {
-                parse::Body::Element(el) => Body::Element(Element::from_element(el)?),
-                parse::Body::Literal(lit) => Body::Literal(lit.clone()),
-                parse::Body::Expression(expr) => Body::Script(expr.clone()),
-            }).collect(),
-            source: element.clone(),
-        })
     }
 
     fn render(&self, depth: u64) -> String {

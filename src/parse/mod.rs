@@ -22,7 +22,7 @@ pub struct Element {
     pub origin: Origin,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Origin {
     pub source: PathBuf,
     pub offset: usize,
@@ -92,6 +92,7 @@ impl Debug for Literal {
     }
 }
 
+#[derive(Clone)]
 pub enum Body {
     Element(Element),
     Expression(Expression),
@@ -118,7 +119,7 @@ impl Debug for Body {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Attribute {
     pub name: String,
     pub value: String,

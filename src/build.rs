@@ -12,6 +12,7 @@ use crate::{
     error::*,
     template::elements::Element
 };
+use crate::template::elements::from_element;
 
 #[derive(Debug)]
 pub struct PageResolver {
@@ -75,7 +76,7 @@ pub async fn build(page: PageResolver) -> Result<()> {
 
     let mut cx = ParsingContext::new(source, page.path.clone())?;
     let page = cx.parse()?;
-    let el = Element::from_element(&page)?;
+    let el = from_element(&page);
 
     debug!("Transform: {:?}", el.render(0));
 

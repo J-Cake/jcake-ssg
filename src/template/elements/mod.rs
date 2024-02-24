@@ -5,8 +5,7 @@ pub mod include;
 pub mod template;
 pub mod condition;
 
-use rune::alloc::HashMap;
-use crate::error::*;
+use std::collections::HashMap;
 use crate::parse;
 use crate::parse::Attribute;
 use crate::parse::Expression;
@@ -25,49 +24,45 @@ pub enum Body {
     Script(Expression)
 }
 
+pub fn from_element(element: &ParseElement) -> Box<dyn Element> {
+    let attr = element
+        .attributes
+        .iter()
+        .map(|attr| (attr.name.clone(), attr.clone()))
+        .collect();
+    let body = element.body.iter().map(|i| match i {
+        parse::Body::Element(el) => Body::Element(from_element(el)),
+        parse::Body::Literal(lit) => Body::Literal(lit.clone()),
+        parse::Body::Expression(expr) => Body::Script(expr.clone()),
+    }).collect::<Vec<_>>();
+    let source = element.clone();
+
+    return match element.name.as_str() {
+        "block" => Box::new(BlockElement { attr, body, source }),
+        "template" => Box::new(TemplateElement { attr, body, source }),
+        "include" => Box::new(IncludeElement { attr, body, source }),
+        "component" => Box::new(ComponentElement { attr, body, source }),
+        "escape" => Box::new(EscapeElement { attr, body, source }),
+        "condition" => Box::new(ConditionElement { attr, body, source }),
+        _ => Box::new(GenericElement { attr, body, source }),
+    };
+}
+
 pub trait Element {
     fn name(&self) -> String;
-
-    fn from_element(element: &ParseElement) -> Result<Box<dyn Element>> {
-        return Ok(Box::new(match element.name.as_str() {
-            "block" => BlockElement::from_element(element)?,
-            "template" => TemplateElement::from_element(element)?,
-            "include" => IncludeElement::from_element(element)?,
-            "component" => ComponentElement::from_element(element)?,
-            "escape" => EscapeElement::from_element(element)?,
-            "condition" => ConditionElement::from_element(element)?,
-            _ => GenericElement::from_element(element)?,
-        }));
-    }
 
     fn render(&self, depth: u64) -> String;
 }
 
 pub struct GenericElement {
-    pub(crate) source: parse::Element,
-    pub(crate) body: Vec<Body>,
-    pub(crate) attr: HashMap<String, Attribute>
+    attr: HashMap<String, Attribute>,
+    body: Vec<Body>,
+    source: parse::Element,
 }
 
 impl Element for GenericElement {
     fn name(&self) -> String {
         self.source.name.clone()
-    }
-
-    fn from_element(element: &ParseElement) -> Result<Self> {
-        Ok(Self {
-            attr: element
-                .attributes
-                .iter()
-                .map(|attr| (attr.name.clone(), attr))
-                .collect(),
-            body: element.body.iter().map(|i| match i {
-                parse::Body::Element(el) => Body::Element(Element::from_element(el)?),
-                parse::Body::Literal(lit) => Body::Literal(lit.clone()),
-                parse::Body::Expression(expr) => Body::Script(expr.clone()),
-            }).collect(),
-            source: element.clone(),
-        })
     }
 
     fn render(&self, depth: u64) -> String {
